@@ -1,4 +1,5 @@
 from operator import index
+from turtle import title
 from typing import Optional
 from fastapi import FastAPI, Response, status, HTTPException
 from fastapi.params import Body
@@ -21,7 +22,7 @@ class Post(BaseModel):
 while True:
 
     try:
-        conn = psycopg2.connect(host='localhost', database='fastapi', user='postgres', password='24462', cursor_factory=RealDictCursor())
+        conn = psycopg2.connect(host='localhost', database='fastapi', user='postgres', password='24462', cursor_factory=RealDictCursor)
         cursor = conn.cursor()
         print("Databse connection was successful.")
         break
@@ -54,63 +55,61 @@ def root():
 #defining a GET endpoint at "/posts" 
 @app.get("/posts")
 def get_posts():
+    cursor.execute(""" SELECT * FROM posts """)
+    posts = cursor.fetchall()
     #returns to user, the array of posts
-    return{"Data": my_posts}
+    return{"Data": posts}
 
 #defining a POST endpoint at "/posts" and setting a status code 201 
 @app.post("/posts", status_code= status.HTTP_201_CREATED)
 def create_posts(post: Post):
-    #converts the post given to a dictionary 
-    post_dict = post.model_dump()
-    #randomly generates an id for the given post
-    post_dict['id'] = randrange(0, 100000)
-    #appends the dictionary created to the array
-    my_posts.append(post_dict)
-    #returns the created post dictionary to the user
-    return {"data": post_dict}
+    cursor.execute("""INSERT INTO posts (title, content, published) VALUES (%s, %s, %s) RETURNING * """,
+                   (post.title, post.content, post.published))
+
+    new_post = cursor.fetchone()
+
+    conn.commit()
+
+    return {"data": new_post}
 
 #defining a GET endpoint at "/posts/{id}" where id is given by the user
 @app.get("/posts/{id}") # {id} - path parameter
 def get_post(id: int, response: Response):
-    #a variable to store a post if the id is found by the find_posts function in the my_posts array
-    post = find_posts(int(id))
-    #throw an error with a message if the post with the provided id is not found in the my_posts array
+
+    cursor.execute(""" SELECT * FROM posts WHERE id = %s  """, (str(id)))
+    post = cursor.fetchone()
+    
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} was not found")
-    #return post to the user 
+    
     return {"post details": post}
 
 #defining a DELETE endpoint at "/posts/{id}" path
 @app.delete("/posts/{id}")
 def delete_post(id: int, status_code= status.HTTP_204_NO_CONTENT):
-    #deleting post
-    # find index in array with that id and pop the index.
-    index = find_index_post(id)
     
-    if index == None:
+    cursor.execute("""DELETE FROM posts WHERE id = %s RETURNING *""", (str(id)))
+    deleted_post = cursor.fetchone()
+    conn.commit()
+
+    if deleted_post == None:
         raise HTTPException(status_code= status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} does not exist")
     
-    my_posts.pop(index)
     return Response(status_code= status.HTTP_204_NO_CONTENT)
 
 
 @app.put("/posts/{id}")
 def update_post(id: int, post: Post):
 
-    #finds the index of the post with the given id
-    index = find_index_post(id)
-    
-    #throw error if the id isn't found
-    if index == None:
+    cursor.execute("""UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s RETURNING *""", 
+                   (post.title, post.content, post.published, str(id)))
+    updated_post = cursor.fetchone()
+    conn.commit()
+
+    if updated_post == None:
         raise HTTPException(status_code= status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} does not exist")
     
-    #convert the post given to a dictionary
-    post_dict = post.model_dump()
-    #get the id given in the post from the post's dictionary created
-    post_dict['id'] = id
-    #at the index in the my_posts array where posts are stored, the content from post dictionary is put in place of the content present
-    my_posts[index] = post_dict
-    return{"data": post_dict}
+    return{"data": updated_post}
