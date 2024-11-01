@@ -19,3 +19,8 @@ Primary Key - a column or et of columns that uniquely identify each row on a tab
 - `UNIQUE` constraint - applied to ensure that each entry in a field(column) is unique i.e., no duplicates.  
 - `NULL` constraint - applied to ensure that the column is never blank on any record(row).  
 
+
+- In Postgres, semi colon should come at the end of every statement.
+- When working with Varchar, single quotes are used.
+- `DELETE` to remove record from a table.
+- `UPDATE` table_name `SET` column = value `WHERE` column = value
